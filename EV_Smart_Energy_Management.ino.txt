@@ -1,0 +1,53 @@
+#include <LiquidCrystal.h>
+
+LiquidCrystal lcd(12,11,5,4,3,2);
+
+const int batteryPin = A0;
+const int motorPin = 9;       // PWM for motor
+const int regenPin = A1;      // Current sensor for regen
+float batteryVoltage, motorPWM, regenCurrent;
+float SOC = 0.0;
+float energyRecovered = 0.0;
+unsigned long lastTime;
+
+void setup() {
+  lcd.begin(16,2);
+  lcd.print("EV SEMS Active");
+  delay(2000);
+  lcd.clear();
+  lastTime = millis();
+  pinMode(motorPin, OUTPUT);
+}
+
+void loop() {
+  int battVal = analogRead(batteryPin);
+  batteryVoltage = battVal * (25.0 / 1023.0);
+  SOC = (batteryVoltage/25.0) * 100.0;
+
+  int regenVal = analogRead(regenPin);
+  regenCurrent = (regenVal * (5.0 / 1023.0) - 2.5) / 0.185; // ACS712 5A scaling
+
+  // Energy recovered
+  unsigned long currentTime = millis();
+  float dt = (currentTime - lastTime)/1000.0;
+  lastTime = currentTime;
+  if(regenCurrent>0) energyRecovered += batteryVoltage * regenCurrent * dt;
+
+  // Motor PWM control based on SOC
+  if(SOC>80) motorPWM = 255;
+  else if(SOC>50) motorPWM = 200;
+  else motorPWM = 150;
+  analogWrite(motorPin, motorPWM);
+
+  lcd.setCursor(0,0);
+  lcd.print("SOC:");
+  lcd.print(SOC,1);
+  lcd.print("%");
+
+  lcd.setCursor(0,1);
+  lcd.print("Energy:");
+  lcd.print(energyRecovered/3600.0,2); // Wh
+  lcd.print("Wh");
+
+  delay(1000);
+}
